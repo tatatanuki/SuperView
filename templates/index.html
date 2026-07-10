@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>景色のいい場所マップ</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    background: #f4f6f5;
+  }
+  header {
+    background: #2f6b4f;
+    color: white;
+    padding: 14px 20px;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    background: white;
+    border-bottom: 1px solid #ddd;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .controls input[type="text"] {
+    flex: 1;
+    min-width: 180px;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .controls select, .controls button {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+  }
+  .controls button.primary {
+    background: #2f6b4f;
+    color: white;
+    border: none;
+    font-weight: bold;
+  }
+  .controls button.primary:hover { background: #255a41; }
+
+  .layout {
+    display: flex;
+    height: calc(100vh - 118px);
+  }
+  #map { flex: 1; }
+
+  #sidebar {
+    width: 320px;
+    background: white;
+    border-left: 1px solid #ddd;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  #sidebar h2 { font-size: 15px; margin: 6px 4px 10px; color: #333; }
+  .spot-card {
+    padding: 10px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .spot-card:hover { background: #f0f7f3; border-color: #2f6b4f; }
+  .spot-card .name { font-weight: bold; font-size: 14px; color: #22402f; }
+  .spot-card .desc { font-size: 12px; color: #666; margin-top: 4px; }
+  .spot-card .meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .spot-card .category { font-size: 11px; background: #eef3f0; color: #2f6b4f; padding: 2px 6px; border-radius: 10px; }
+  .spot-card .weather { font-size: 12px; color: #444; }
+  .spot-card.sunny { border-color: #e0a800; background: #fffbea; }
+  .spot-card .sunny-badge {
+    display: inline-block; font-size: 11px; font-weight: bold;
+    background: #f5b301; color: white; padding: 2px 6px; border-radius: 10px; margin-bottom: 4px;
+  }
+  .status { font-size: 13px; color: #666; padding: 4px; }
+  .status.error { color: #c0392b; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>景色のいい場所マップ</h1>
+  <p>OpenStreetMapのデータから観光スポットを検索し、Open-Meteoの天気情報で「今日晴れている場所」を優先表示します</p>
+</header>
+
+<div class="controls">
+  <input type="text" id="search-input" placeholder="地名を入力(例: 富士山、京都、鎌倉)">
+  <button id="search-btn">この場所へ移動</button>
+  <button id="locate-btn">📍 現在地から探す</button>
+  <select id="radius-select">
+    <option value="1000">半径 1km</option>
+    <option value="3000" selected>半径 3km</option>
+    <option value="5000">半径 5km</option>
+    <option value="10000">半径 10km</option>
+  </select>
+  <button id="find-btn" class="primary">この付近の観光スポットを探す</button>
+</div>
+
+<div class="layout">
+  <div id="map"></div>
+  <div id="sidebar">
+    <h2>検索結果</h2>
+    <div id="status" class="status">地図を移動し「この付近の景色スポットを探す」を押してください</div>
+    <div id="spot-list"></div>
+  </div>
+</div>
+
+<script>
+  const map = L.map('map').setView([35.6812, 139.7671], 12); // 初期表示: 東京駅付近
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  }).addTo(map);
+
+  let markers = [];
+  let userMarker = null;
+
+  function clearMarkers() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+  }
+
+  function setStatus(text, isError = false) {
+    const el = document.getElementById('status');
+    el.textContent = text;
+    el.className = 'status' + (isError ? ' error' : '');
+  }
+
+  function weatherHtml(weather) {
+    if (!weather) return '<span class="weather">天気情報なし</span>';
+    const temp = (weather.temperature !== undefined && weather.temperature !== null)
+      ? `${weather.temperature}℃` : '';
+    return `<span class="weather">${weather.icon} ${weather.label} ${temp}</span>`;
+  }
+
+  function renderSpots(spots) {
+    clearMarkers();
+    const listEl = document.getElementById('spot-list');
+    listEl.innerHTML = '';
+
+    if (spots.length === 0) {
+      setStatus('この範囲には登録された観光スポットが見つかりませんでした。範囲を広げるか場所を変えてみてください。');
+      return;
+    }
+
+    const sunnyCount = spots.filter(s => s.weather && s.weather.is_sunny).length;
+    setStatus(`${spots.length} 件見つかりました(うち本日晴れ: ${sunnyCount} 件、天気の良い順に表示しています)`);
+
+    spots.forEach(spot => {
+      const isSunny = !!(spot.weather && spot.weather.is_sunny);
+      const marker = L.marker([spot.lat, spot.lon]).addTo(map);
+      marker.bindPopup(`
+        <b>${spot.name}</b><br>
+        ${spot.category || ''}<br>
+        ${weatherHtml(spot.weather)}<br>
+        ${spot.description || ''}
+      `);
+      markers.push(marker);
+
+      const card = document.createElement('div');
+      card.className = 'spot-card' + (isSunny ? ' sunny' : '');
+      card.innerHTML = `
+        ${isSunny ? '<div class="sunny-badge">☀ 本日晴れ</div>' : ''}
+        <div class="name">${spot.name}</div>
+        <div class="meta">
+          <span class="category">${spot.category || '観光スポット'}</span>
+          ${weatherHtml(spot.weather)}
+        </div>
+        <div class="desc">${spot.description || '説明情報はありません'}</div>
+      `;
+      card.addEventListener('click', () => {
+        map.setView([spot.lat, spot.lon], 15);
+        marker.openPopup();
+      });
+      listEl.appendChild(card);
+    });
+  }
+
+  async function findViewpoints() {
+    const center = map.getCenter();
+    const radius = document.getElementById('radius-select').value;
+
+    setStatus('景色スポットを検索中...');
+
+    try {
+      const res = await fetch(`/api/viewpoints?lat=${center.lat}&lng=${center.lng}&radius=${radius}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus(data.error || '検索に失敗しました', true);
+        return;
+      }
+      renderSpots(data.spots);
+    } catch (err) {
+      setStatus('サーバーに接続できませんでした。app.pyが起動しているか確認してください。', true);
+    }
+  }
+
+  async function searchPlace() {
+    const q = document.getElementById('search-input').value.trim();
+    if (!q) return;
+
+    setStatus('場所を検索中...');
+
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus(data.error || '場所が見つかりませんでした', true);
+        return;
+      }
+      map.setView([data.lat, data.lon], 13);
+      setStatus(`「${data.display_name}」に移動しました。続けて景色スポットを検索できます。`);
+    } catch (err) {
+      setStatus('サーバーに接続できませんでした。app.pyが起動しているか確認してください。', true);
+    }
+  }
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      setStatus('このブラウザは位置情報の取得に対応していません', true);
+      return;
+    }
+
+    setStatus('現在地を取得中...');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        map.setView([latitude, longitude], 14);
+
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.circleMarker([latitude, longitude], {
+          radius: 8, color: '#1e88e5', fillColor: '#1e88e5', fillOpacity: 0.8,
+        }).addTo(map).bindPopup('現在地');
+
+        findViewpoints();
+      },
+      (err) => {
+        setStatus('現在地の取得に失敗しました(' + err.message + ')。ブラウザの位置情報許可を確認してください。', true);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  document.getElementById('find-btn').addEventListener('click', findViewpoints);
+  document.getElementById('search-btn').addEventListener('click', searchPlace);
+  document.getElementById('locate-btn').addEventListener('click', useCurrentLocation);
+  document.getElementById('search-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchPlace();
+  });
+</script>
+
+</body>
+</html>
