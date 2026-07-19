@@ -7,120 +7,252 @@
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <style>
+  :root {
+    --paper: #FBF8F2;
+    --paper-alt: #F3EEE1;
+    --ink: #23301F;
+    --ink-soft: #5B6A55;
+    --pine: #28422E;
+    --pine-deep: #1B2E20;
+    --sky: #4E7A8C;
+    --gold: #E3A542;
+    --gold-deep: #C8862A;
+    --line: #DBD3BE;
+    --card-shadow: 0 1px 2px rgba(35, 48, 31, 0.06);
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
-    background: #f4f6f5;
+    font-family: 'Inter', "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
   }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
   header {
-    background: #2f6b4f;
-    color: white;
-    padding: 14px 20px;
+    background: var(--pine);
+    color: var(--paper);
+    padding: 22px 28px 20px;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 3px solid var(--gold);
   }
-  header h1 { margin: 0; font-size: 20px; }
-  header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+  header svg.contours {
+    position: absolute;
+    top: 0; right: 0;
+    height: 100%;
+    width: 260px;
+    opacity: 0.16;
+    pointer-events: none;
+  }
+  header .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 6px;
+  }
+  header h1 {
+    margin: 0;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: 0.01em;
+  }
+  header p {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #D9E4DA;
+    max-width: 560px;
+    line-height: 1.5;
+  }
 
   .controls {
     display: flex;
-    gap: 8px;
-    padding: 12px 20px;
-    background: white;
-    border-bottom: 1px solid #ddd;
+    gap: 10px;
+    padding: 14px 28px;
+    background: var(--paper-alt);
+    border-bottom: 1px solid var(--line);
     flex-wrap: wrap;
     align-items: center;
   }
   .controls input[type="text"] {
     flex: 1;
     min-width: 180px;
-    padding: 8px 10px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
     font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .controls input[type="text"]:focus,
+  .controls select:focus,
+  .controls button:focus {
+    outline: 2px solid var(--sky);
+    outline-offset: 1px;
   }
   .controls select, .controls button {
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    font-size: 14px;
-    background: white;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
     cursor: pointer;
+    white-space: nowrap;
   }
+  .controls select { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .controls button:hover { border-color: var(--sky); color: var(--sky); }
   .controls button.primary {
-    background: #2f6b4f;
-    color: white;
+    background: var(--gold);
+    color: var(--pine-deep);
     border: none;
-    font-weight: bold;
+    font-weight: 600;
   }
-  .controls button.primary:hover { background: #255a41; }
+  .controls button.primary:hover { background: var(--gold-deep); color: white; }
 
   .layout {
     display: flex;
-    height: calc(100vh - 118px);
+    height: calc(100vh - 132px);
   }
-  #map { flex: 1; }
+  #map { flex: 1; filter: saturate(0.92); }
 
   #sidebar {
-    width: 320px;
-    background: white;
-    border-left: 1px solid #ddd;
+    width: 340px;
+    background: var(--paper);
+    border-left: 1px solid var(--line);
     overflow-y: auto;
-    padding: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
   }
-  #sidebar h2 { font-size: 15px; margin: 6px 4px 10px; color: #333; }
-  .spot-card {
-    padding: 10px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .spot-card:hover { background: #f0f7f3; border-color: #2f6b4f; }
-  .spot-card .name { font-weight: bold; font-size: 14px; color: #22402f; }
-  .spot-card .desc { font-size: 12px; color: #666; margin-top: 4px; }
-  .spot-card .meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-  .spot-card .category { font-size: 11px; background: #eef3f0; color: #2f6b4f; padding: 2px 6px; border-radius: 10px; }
-  .spot-card .weather { font-size: 12px; color: #444; }
-  .spot-card.sunny { border-color: #e0a800; background: #fffbea; }
-  .spot-card .sunny-badge {
-    display: inline-block; font-size: 11px; font-weight: bold;
-    background: #f5b301; color: white; padding: 2px 6px; border-radius: 10px; margin-bottom: 4px;
-  }
-  .status { font-size: 13px; color: #666; padding: 4px; }
-  .status.error { color: #c0392b; }
 
-  .spot-card .fav-btn {
-    border: none;
-    background: none;
-    font-size: 16px;
-    cursor: pointer;
-    margin-left: auto;
-    color: #ccc;
-    padding: 0 4px;
-  }
-  .spot-card .fav-btn.active { color: #f5b301; }
-  .spot-card .meta { align-items: center; }
-
-  .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
   .tabs button {
     flex: 1;
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    background: #f4f6f5;
-    border-radius: 6px;
+    padding: 9px 8px;
+    border: none;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
     font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-soft);
     cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
   }
-  .tabs button.active { background: #2f6b4f; color: white; border-color: #2f6b4f; }
-  #favorite-list .spot-card .fav-btn.active { color: #f5b301; }
+  .tabs button.active { color: var(--pine); border-bottom-color: var(--gold); font-weight: 600; }
+
+  .status {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    padding: 6px 2px 12px;
+    line-height: 1.5;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .status.error { color: #B4472F; }
+
+  .spot-card {
+    position: relative;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    background: white;
+    box-shadow: var(--card-shadow);
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .spot-card:hover { border-color: var(--sky); transform: translateX(2px); }
+  .spot-card .name {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--pine-deep);
+    padding-right: 40px;
+  }
+  .spot-card .desc { font-size: 12px; color: var(--ink-soft); margin-top: 5px; line-height: 1.5; }
+  .spot-card .meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .spot-card .category {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    background: var(--paper-alt);
+    color: var(--pine);
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+  }
+  .spot-card .weather { font-size: 12px; color: var(--ink-soft); }
+  .spot-card.sunny { border-color: var(--gold); background: #FFFBF0; }
+
+  .sunny-badge {
+    position: absolute;
+    top: -8px;
+    right: 10px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--gold);
+    color: var(--pine-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    font-size: 15px;
+    box-shadow: 0 2px 4px rgba(200, 134, 42, 0.4);
+    transform: rotate(8deg);
+    border: 2px solid var(--paper);
+  }
+  .sunny-badge span { font-family: 'JetBrains Mono', monospace; font-size: 7px; font-weight: 600; letter-spacing: 0.02em; }
+
+  .fav-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: none;
+    background: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #C9C2AE;
+    padding: 2px 4px;
+    line-height: 1;
+  }
+  .spot-card.sunny .fav-btn { top: 40px; }
+  .fav-btn.active { color: var(--gold-deep); }
+  .fav-btn:hover { color: var(--gold-deep); }
+  .fav-btn:disabled { opacity: 0.5; cursor: default; }
+
+  #favorite-panel { flex: 1; }
+  .empty-note {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    padding: 20px 6px;
+    text-align: center;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+  }
 </style>
 </head>
 <body>
 
 <header>
+  <svg class="contours" viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20,180 Q80,120 40,60 Q20,20 80,10" stroke="#FBF8F2" stroke-width="1" fill="none"/>
+    <path d="M50,190 Q110,130 70,70 Q50,30 110,20" stroke="#FBF8F2" stroke-width="1" fill="none"/>
+    <path d="M80,200 Q140,140 100,80 Q80,40 140,30" stroke="#FBF8F2" stroke-width="1" fill="none"/>
+    <path d="M110,200 Q170,150 130,90 Q110,50 170,40" stroke="#FBF8F2" stroke-width="1" fill="none"/>
+    <path d="M140,200 Q200,160 160,100 Q140,60 200,50" stroke="#FBF8F2" stroke-width="1" fill="none"/>
+  </svg>
+  <p class="eyebrow">FIELD GUIDE — VIEWPOINTS &amp; WEATHER</p>
   <h1>景色のいい場所マップ</h1>
   <p>OpenStreetMapのデータから観光スポットを検索し、Open-Meteoの天気情報で「今日晴れている場所」を優先表示します</p>
 </header>
@@ -146,7 +278,7 @@
       <button id="tab-favorites">お気に入り</button>
     </div>
     <div id="search-panel">
-      <div id="status" class="status">地図を移動し「この付近の景色スポットを探す」を押してください</div>
+      <div id="status" class="status">地図を移動し「この付近の観光スポットを探す」を押してください</div>
       <div id="spot-list"></div>
     </div>
     <div id="favorite-panel" style="display:none;">
@@ -214,12 +346,12 @@
       const card = document.createElement('div');
       card.className = 'spot-card' + (isSunny ? ' sunny' : '');
       card.innerHTML = `
-        ${isSunny ? '<div class="sunny-badge">☀ 本日晴れ</div>' : ''}
+        ${isSunny ? '<div class="sunny-badge"><div>☀</div><span>SUNNY</span></div>' : ''}
+        <button class="fav-btn${isFav ? ' active' : ''}" data-spot-id="${spot.id}" title="お気に入りに追加">${isFav ? '★' : '☆'}</button>
         <div class="name">${spot.name}</div>
         <div class="meta">
-          <span class="category">${spot.category || '観光スポット'}</span>
+          <span class="category mono">${spot.category || '観光スポット'}</span>
           ${weatherHtml(spot.weather)}
-          <button class="fav-btn${isFav ? ' active' : ''}" data-spot-id="${spot.id}" title="お気に入りに追加">${isFav ? '★' : '☆'}</button>
         </div>
         <div class="desc">${spot.description || '説明情報はありません'}</div>
       `;
@@ -292,7 +424,7 @@
 
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.circleMarker([latitude, longitude], {
-          radius: 8, color: '#1e88e5', fillColor: '#1e88e5', fillOpacity: 0.8,
+          radius: 8, color: '#4E7A8C', fillColor: '#4E7A8C', fillOpacity: 0.8,
         }).addTo(map).bindPopup('現在地');
 
         findViewpoints();
@@ -369,7 +501,8 @@
       favoriteIds = new Set(favorites.map(f => f.spot_id));
 
       if (favorites.length === 0) {
-        statusEl.textContent = 'まだお気に入りはありません。検索結果の☆をタップして登録できます。';
+        statusEl.textContent = '';
+        listEl.innerHTML = '<div class="empty-note">まだお気に入りはありません。<br>検索結果の☆をタップして登録できます。</div>';
         return;
       }
       statusEl.textContent = `${favorites.length} 件のお気に入り`;
@@ -378,10 +511,10 @@
         const card = document.createElement('div');
         card.className = 'spot-card';
         card.innerHTML = `
+          <button class="fav-btn active" data-spot-id="${spot.spot_id}" title="お気に入りから削除">★</button>
           <div class="name">${spot.name}</div>
           <div class="meta">
-            <span class="category">${spot.category || '観光スポット'}</span>
-            <button class="fav-btn active" data-spot-id="${spot.spot_id}" title="お気に入りから削除">★</button>
+            <span class="category mono">${spot.category || '観光スポット'}</span>
           </div>
           <div class="desc">${spot.description || '説明情報はありません'}</div>
         `;
